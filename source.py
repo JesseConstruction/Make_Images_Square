@@ -6,6 +6,10 @@ import time
 from PIL import Image
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import sys
+from tkinter.scrolledtext import ScrolledText
+from datetime import datetime
+
 
 def get_desktop_path():
     """Get path to user's desktop"""
@@ -142,21 +146,123 @@ def process_images_locally(original_dir):
         f"- Output folder: {final_output}"
     )
 
+class TkConsoleTee:
+    """Mirror stdout/stderr into a Tk ScrolledText and keep a memory buffer."""
+    def __init__(self, text_widget, show_timestamps=False):
+        self.text_widget = text_widget
+        self.show_timestamps = show_timestamps
+        self._orig_stdout = sys.__stdout__
+        self._orig_stderr = sys.__stderr__
+        self._buf = []  # in-memory log buffer
+
+    def write(self, s):
+        if not s:
+            return
+        line = s
+        if self.show_timestamps and s.strip():
+            ts = datetime.now().strftime("%H:%M:%S")
+            line = f"[{ts}] {s}"
+        # live window
+        self.text_widget.insert("end", line)
+        self.text_widget.see("end")
+        self.text_widget.update_idletasks()
+        # buffer
+        self._buf.append(line)
+        # optional: mirror back to real stdout (IDE/terminal)
+        try:
+            self._orig_stdout.write(s)
+            self._orig_stdout.flush()
+        except Exception:
+            pass
+
+    def flush(self):
+        pass
+
+    def get_value(self):
+        return "".join(self._buf)
+
+
+
+
 def main():
     root = tk.Tk()
     root.withdraw()
-    
+
+    # Live log window
+    log_win = tk.Toplevel(root)
+    log_win.title("Image Processing Log")
+    log_win.geometry("800x400")
+
+    tk.Label(log_win, text="Live Log", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=8, pady=(8, 0))
+    log_text = ScrolledText(log_win, wrap="word", height=20)
+    log_text.pack(fill="both", expand=True, padx=8, pady=8)
+
+    # Redirect prints ONLY to the window (buffered in memory)
+    tee = TkConsoleTee(log_text, show_timestamps=False)
+    sys.stdout = tee
+    sys.stderr = tee
+
+    def on_close():
+        log_win.destroy()
+        root.destroy()
+
+    log_win.protocol("WM_DELETE_WINDOW", on_close)
+
+    error_happened = False
+    logfile_path = None
+
     try:
+        print("Select the folder containing images…")
         source_dir = filedialog.askdirectory(title="Select folder with images")
         if not source_dir:
+            print("No folder selected. Exiting.")
+            messagebox.showinfo("Canceled", "No folder selected.")
+            on_close()
             return
-            
+
         result, message = process_images_locally(source_dir)
-        messagebox.showinfo("Processing Complete", message)
+        print("\n" + message)
+
+        # Decide whether to persist a .log file
+        text_dump = tee.get_value()
+        # Heuristic: unhandled exception or any printed error markers warrant a log
+        printed_errors = ("❌" in text_dump) or ("⚠️" in text_dump) or ("Error" in text_dump)
+        if (not result) or printed_errors:
+            desktop = get_desktop_path()
+            logfile_path = os.path.join(desktop, f"image_square_log_{int(time.time())}.log")
+            with open(logfile_path, "w", encoding="utf-8") as fh:
+                fh.write(text_dump)
+            print(f"\nA log was saved to: {logfile_path}")
+
+        # Summary for the user
+        if logfile_path:
+            messagebox.showinfo("Processing Complete", message + f"\n\nA log was saved to:\n{logfile_path}")
+        else:
+            messagebox.showinfo("Processing Complete", message)
+
     except Exception as e:
-        messagebox.showerror("Error", f"Operation failed:\n{str(e)}")
+        error_happened = True
+        print(f"Error: {str(e)}")
+
+        # On exception, ALWAYS save a log
+        desktop = get_desktop_path()
+        logfile_path = os.path.join(desktop, f"image_square_log_{int(time.time())}.log")
+        with open(logfile_path, "w", encoding="utf-8") as fh:
+            fh.write(tee.get_value())
+        print(f"\nA log was saved to: {logfile_path}")
+
+        messagebox.showerror("Error", f"Operation failed:\n{str(e)}\n\nA log was saved to:\n{logfile_path}")
+
     finally:
-        root.destroy()
+        # Keep the window open so users can review output; they'll close it when done.
+        pass
+
+    # Bring the log window to front
+    log_win.lift()
+    log_win.attributes("-topmost", True)
+    log_win.after(200, lambda: log_win.attributes("-topmost", False))
+    root.deiconify()
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
