@@ -217,7 +217,6 @@ def main():
         source_dir = filedialog.askdirectory(title="Select folder with images")
         if not source_dir:
             print("No folder selected. Exiting.")
-            messagebox.showinfo("Canceled", "No folder selected.")
             on_close()
             return
 
@@ -237,9 +236,12 @@ def main():
 
         # Summary for the user
         if logfile_path:
-            messagebox.showinfo("Processing Complete", message + f"\n\nA log was saved to:\n{logfile_path}")
+            print("\nProcessing Complete.")
+            print(message)
+            print(f"\nA log was saved to:\n{logfile_path}")
         else:
-            messagebox.showinfo("Processing Complete", message)
+            print("\nProcessing Complete.")
+            print(message)
 
     except Exception as e:
         error_happened = True
@@ -252,8 +254,8 @@ def main():
             fh.write(tee.get_value())
         print(f"\nA log was saved to: {logfile_path}")
 
-        messagebox.showerror("Error", f"Operation failed:\n{str(e)}\n\nA log was saved to:\n{logfile_path}")
-
+        print(f"Error: {str(e)}")
+        print(f"\nA log was saved to:\n{logfile_path}")
     finally:
         # Keep the window open so users can review output; they'll close it when done.
         pass
