@@ -51,20 +51,20 @@ def process_images_locally(original_dir):
         shutil.rmtree(temp_root, ignore_errors=True)
         return False, "No valid images found"
 
-    # 2. Process non-square images
+    # 2. Process non-square images (preserve original filenames and extensions)
     processed_count = 0
     for filename in all_images:
         input_path = os.path.join(temp_input, filename)
-        output_filename = f"{os.path.splitext(filename)[0][:20]}.jpg"
+        output_filename = filename  # keep the original name
         output_path = os.path.join(temp_output, output_filename)
-        
+
         # Skip if already in final output (from previous runs)
         if os.path.exists(os.path.join(final_output, output_filename)):
             continue
-            
+
         try:
             if is_image_square(input_path):
-                # Copy square images directly to final output
+                # Copy square images directly to final output with the same name
                 shutil.copy2(input_path, os.path.join(final_output, filename))
                 print(f"♢ Square image copied: {filename}")
             else:
@@ -74,7 +74,14 @@ def process_images_locally(original_dir):
                     max_dim = max(width, height)
                     new_img = Image.new("RGB", (max_dim, max_dim), (255, 255, 255))
                     new_img.paste(img, ((max_dim - width) // 2, (max_dim - height) // 2))
-                    new_img.save(output_path, "JPEG", quality=95)
+
+                    ext = os.path.splitext(filename)[1].lower()
+                    if ext in [".jpg", ".jpeg"]:
+                        new_img.save(output_path, "JPEG", quality=95)
+                    else:
+                        # Save in the original format when possible
+                        # (Pillow infers format from extension; this avoids JPEG-only params)
+                        new_img.save(output_path)
                 processed_count += 1
                 print(f"□ Processed: {filename}")
         except Exception as e:
