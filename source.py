@@ -57,6 +57,7 @@ def process_images_locally(original_dir):
 
     # 2. Process non-square images (preserve original filenames and extensions)
     processed_count = 0
+    square_copied = 0
     for filename in all_images:
         input_path = os.path.join(temp_input, filename)
         output_filename = filename  # keep the original name
@@ -70,6 +71,7 @@ def process_images_locally(original_dir):
             if is_image_square(input_path):
                 # Copy square images directly to final output with the same name
                 shutil.copy2(input_path, os.path.join(final_output, filename))
+                square_copied += 1
                 print(f"♢ Square image copied: {filename}")
             else:
                 # Process non-square images
@@ -92,17 +94,16 @@ def process_images_locally(original_dir):
             print(f"❌ Failed {filename}: {str(e)}")
 
     # 3. Final sweep to catch any missed square images
-    square_count = 0
     for filename in os.listdir(original_dir):
         src = os.path.join(original_dir, filename)
         dst = os.path.join(final_output, filename)
-        
+
         if (filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.jfif'))
-            and not os.path.exists(dst)):
+                and not os.path.exists(dst)):
             try:
                 if is_image_square(src):
                     shutil.copy2(src, dst)
-                    square_count += 1
+                    square_copied += 1  # <-- increment the unified counter
                     print(f"♢ Final sweep copied: {filename}")
             except Exception as e:
                 print(f"❌ Final sweep failed on {filename}: {str(e)}")
@@ -130,6 +131,7 @@ def process_images_locally(original_dir):
                 try:
                     shutil.copy2(src, dst)
                     verified_square += 1
+                    square_copied += 1
                     print(f"♢ Verification copied: {filename}")
                 except Exception as e:
                     print(f"❌ Verification failed on {filename}: {str(e)}")
@@ -140,8 +142,7 @@ def process_images_locally(original_dir):
     return True, (
         f"Final Results:\n"
         f"- Processed {processed_count} non-square images\n"
-        f"- Copied {square_count + verified_square} square images\n"
-        f"- Moved {moved_count} processed images\n"
+        f"- Copied {square_copied} square images\n"        f"- Moved {moved_count} processed images\n"
         f"- Total in output: {len(os.listdir(final_output))} files\n"
         f"- Output folder: {final_output}"
     )
